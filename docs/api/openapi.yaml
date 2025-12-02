@@ -1,0 +1,244 @@
+
+---
+
+## 4. OpenAPI контракт
+
+### Файл: `docs/api/openapi.yaml`
+
+```yaml
+openapi: 3.0.3
+info:
+  title: FishHook Shop API
+  version: 1.0.0
+  description: REST API для керування товарами (Item) у каталозі магазину рибальської снаряги.
+
+paths:
+  /items:
+    get:
+      summary: Отримати список товарів
+      tags: [Items]
+      responses:
+        '200':
+          description: Список товарів
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ItemResponse'
+        '500':
+          description: Внутрішня помилка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Створити новий товар
+      tags: [Items]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemCreateRequest'
+      responses:
+        '201':
+          description: Товар створено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemResponse'
+        '400':
+          description: Помилка валідації вхідних даних
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Внутрішня помилка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /items/{id}:
+    get:
+      summary: Отримати товар за id
+      tags: [Items]
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        '200':
+          description: Знайдений товар
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemResponse'
+        '404':
+          description: Товар не знайдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Внутрішня помилка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Оновити товар
+      tags: [Items]
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemUpdateRequest'
+      responses:
+        '200':
+          description: Оновлений товар
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemResponse'
+        '400':
+          description: Помилка валідації вхідних даних
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Товар не знайдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Внутрішня помилка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Видалити товар
+      tags: [Items]
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        '204':
+          description: Товар видалено
+        '404':
+          description: Товар не знайдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Внутрішня помилка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      summary: Перевірка стану сервера
+      tags: [Health]
+      responses:
+        '200':
+          description: Стан "ok"
+          content:
+            application/json:
+              schema:
+                type: string
+                example: ok
+
+components:
+  schemas:
+    ItemCreateRequest:
+      type: object
+      required:
+        - name
+        - price
+      properties:
+        name:
+          type: string
+          example: Вудилище карпове 3.5 lb
+        description:
+          type: string
+          example: Міцне вудилище для коропової риболовлі
+        price:
+          type: number
+          format: float
+          example: 2500
+        category:
+          type: string
+          example: Вудилища
+    ItemUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+        category:
+          type: string
+    ItemResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+        category:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ErrorDetail:
+      type: object
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: ValidationError
+        code:
+          type: string
+          example: NAME_REQUIRED
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
