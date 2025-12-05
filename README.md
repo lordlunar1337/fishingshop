@@ -17,3 +17,17 @@
 Вигляд API-документації у Swagger Editor:
 
 ![Swagger Screenshot](docs/api/swagger_screenshot.png)
+
+## CI / CD
+
+У репозиторії налаштований GitHub Actions workflow `.github/workflows/ci.yml`, який:
+
+- запускається на push та pull_request у гілку `main`
+- встановлює залежності для backend
+- запускає тести backend (`npm test`)
+- збирає Docker-образ backend API
+- зберігає образ як артефакт виконання
+
+Статус CI:
+
+[![CI](https://github.com/lordlunar1337/fishingshop/actions/workflows/ci.yml/badge.svg)](https://github.com/lordlunar1337/fishingshop/actions/workflows/ci.yml)

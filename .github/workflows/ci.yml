@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  backend-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run backend tests
+        working-directory: backend
+        run: npm test
+
+      - name: Build backend Docker image
+        working-directory: backend
+        run: docker build -t ghcr.io/${{ github.repository_owner }}/fishingshop-api:${{ github.sha }} .
+
+      - name: Save backend image as tar
+        run: docker save ghcr.io/${{ github.repository_owner }}/fishingshop-api:${{ github.sha }} -o backend-image-${{ github.sha }}.tar
+
+      - name: Upload backend image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-image-${{ github.sha }}
+          path: backend-image-${{ github.sha }}.tar
