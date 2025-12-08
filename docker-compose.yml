@@ -1,0 +1,28 @@
+version: '3.9'
+services:
+  api:
+    build: ./backend
+    container_name: fishingshop-api
+    ports:
+      - '4000:4000'
+    environment:
+      - PORT=4000
+    depends_on:
+      - db
+  web:
+    build: ./frontend
+    container_name: fishingshop-web
+    ports:
+      - '3000:80'
+    environment:
+      - API_BASE_URL=http://localhost:4000
+    depends_on:
+      - api
+  db:
+    image: postgres:15-alpine
+    container_name: fishingshop-db
+    environment:
+      - POSTGRES_PASSWORD=example
+      - POSTGRES_DB=fishingshop
+    ports:
+      - '5432:5432'
