@@ -1,188 +1,282 @@
-import React, { useState, useEffect } from "react";
-import { fetchWithResilience } from "./lib/http";
-import { getOrReuseKey } from "./lib/idempotency";
+import { useState } from "react";
 
 function App() {
   const [items, setItems] = useState([]);
-  const [itemsLoading, setItemsLoading] = useState(false);
-  const [orderTitle, setOrderTitle] = useState("");
-  const [lastOrder, setLastOrder] = useState(null);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [failureCount, setFailureCount] = useState(0);
-  const [degraded, setDegraded] = useState(false);
-  const [healthStatus, setHealthStatus] = useState("unknown");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [orderName, setOrderName] = useState("");
+  const [orderPhone, setOrderPhone] = useState("");
+  const [orderItem, setOrderItem] = useState("");
+  const [orderQuantity, setOrderQuantity] = useState(1);
+  const [orderError, setOrderError] = useState("");
+  const [orderSuccess, setOrderSuccess] = useState("");
 
-  const maxFailures = 3;
-
-  const registerFailure = () => {
-    setFailureCount((prev) => {
-      const next = prev + 1;
-      if (next >= maxFailures) {
-        setDegraded(true);
-      }
-      return next;
-    });
-  };
-
-  const registerSuccess = () => {
-    setFailureCount(0);
-    setDegraded(false);
-  };
-
-  const loadItems = async () => {
-    if (degraded) {
-      return;
-    }
-    setItemsLoading(true);
-    setErrorMessage("");
+  const handleLoadItems = async () => {
+    setIsLoading(true);
+    setError("");
     try {
-      const res = await fetchWithResilience("http://localhost:4000/items", {
-        method: "GET",
-        retry: { retries: 2, baseDelayMs: 250, timeoutMs: 3000, jitter: true }
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        setErrorMessage(body && body.error ? body.error : "Failed to load items");
-        registerFailure();
-        return;
+      const response = await fetch("http://localhost:4000/items");
+      if (!response.ok) {
+        throw new Error("Failed to load items");
       }
-      const data = await res.json();
+      const data = await response.json();
       setItems(data);
-      registerSuccess();
     } catch (e) {
-      setErrorMessage("Network error while loading items");
-      registerFailure();
+      setError("Не вдалося завантажити товари. Спробуйте ще раз.");
     } finally {
-      setItemsLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const submitOrder = async (e) => {
+  const handleOpenOrderModal = () => {
+    setOrderError("");
+    setOrderSuccess("");
+    setIsOrderModalOpen(true);
+    if (items.length > 0 && !orderItem) {
+      setOrderItem(String(items[0].id));
+    }
+  };
+
+  const handleCloseOrderModal = () => {
+    setIsOrderModalOpen(false);
+    setOrderError("");
+    setOrderSuccess("");
+  };
+
+  const handleOrderSubmit = (e) => {
     e.preventDefault();
-    if (degraded) {
+    setOrderError("");
+    setOrderSuccess("");
+
+    if (!orderName.trim() || !orderPhone.trim()) {
+      setOrderError("Будь ласка, заповніть ім'я та телефон.");
       return;
     }
-    setErrorMessage("");
-    setLastOrder(null);
-    const payload = { title: orderTitle || "Untitled" };
-    try {
-      const key = await getOrReuseKey(payload);
-      const res = await fetchWithResilience("http://localhost:4000/orders", {
-        method: "POST",
-        body: JSON.stringify(payload),
-        idempotencyKey: key,
-        retry: { retries: 2, baseDelayMs: 300, timeoutMs: 3500, jitter: true }
-      });
-      const body = await res.json().catch(() => null);
-      if (!res.ok) {
-        setErrorMessage(body && body.error ? body.error : "Failed to create order");
-        registerFailure();
-        return;
-      }
-      setLastOrder(body);
-      registerSuccess();
-    } catch (e) {
-      setErrorMessage("Network error while creating order");
-      registerFailure();
+
+    if (!orderItem) {
+      setOrderError("Оберіть товар для замовлення.");
+      return;
     }
+
+    if (Number(orderQuantity) <= 0) {
+      setOrderError("Кількість повинна бути більшою за 0.");
+      return;
+    }
+
+    setOrderSuccess("Замовлення створено (демо-режим). Дані збережено лише локально.");
   };
 
-  const checkHealth = async () => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1000);
-    try {
-      const res = await fetch("http://localhost:4000/health", {
-        method: "GET",
-        signal: controller.signal
-      });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data && data.status) {
-        setHealthStatus(data.status);
-      } else {
-        setHealthStatus("error");
-      }
-    } catch (e) {
-      if (e.name === "AbortError") {
-        setHealthStatus("timeout");
-      } else {
-        setHealthStatus("error");
-      }
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  };
-
-  useEffect(() => {
-    checkHealth();
-  }, []);
-
-  const isActionsDisabled = degraded;
+  const selectedItem =
+    items.find((i) => String(i.id) === String(orderItem)) || null;
 
   return (
-    <div
-      style={{
-        fontFamily: "sans-serif",
-        padding: "2rem",
-        maxWidth: "800px",
-        margin: "0 auto"
-      }}
-    >
-      <h1>Магазин рибальської снаряги</h1>
-      <p>Health: {healthStatus}</p>
-      {degraded && (
-        <div
-          style={{
-            marginBottom: "1rem",
-            padding: "0.75rem 1rem",
-            backgroundColor: "#ffdddd",
-            border: "1px solid #ff9999",
-            borderRadius: "4px"
-          }}
-        >
-          Сервіс тимчасово перевантажено. Спробуйте пізніше. Дії вимкнено.
+    <div className="app-root">
+      <header className="app-header">
+        <div className="app-header-inner">
+          <h1 className="app-title">🎣 FishHook Shop</h1>
+          <p className="app-subtitle">
+            Магазин рибальської снаряги: вудилища, котушки, приманки та все, що потрібно для
+            вдалої рибалки.
+          </p>
+          <div className="app-actions">
+            <button
+              className="primary-button"
+              type="button"
+              onClick={handleOpenOrderModal}
+            >
+              Створити замовлення
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={handleLoadItems}
+              disabled={isLoading}
+            >
+              {isLoading ? "Завантаження..." : "Завантажити товари"}
+            </button>
+          </div>
+          {error && <div className="alert-error">{error}</div>}
+        </div>
+      </header>
+
+      <main className="app-main">
+        <section className="items-section">
+          <div className="items-header">
+            <h2 className="items-title">Каталог товарів</h2>
+            <span className="items-count">
+              {items.length > 0 ? `Знайдено: ${items.length}` : "Список поки що порожній"}
+            </span>
+          </div>
+
+          {isLoading && (
+            <div className="items-loading">
+              <div className="skeleton-card" />
+              <div className="skeleton-card" />
+              <div className="skeleton-card" />
+            </div>
+          )}
+
+          {!isLoading && items.length > 0 && (
+            <div className="items-grid">
+              {items.map((item) => (
+                <article key={item.id} className="item-card">
+                  <div className="item-card-header">
+                    <h3 className="item-name">{item.name}</h3>
+                    {item.category && (
+                      <span className="item-category">{item.category}</span>
+                    )}
+                  </div>
+                  {item.description && (
+                    <p className="item-description">{item.description}</p>
+                  )}
+                  <div className="item-footer">
+                    {item.price !== undefined && (
+                      <span className="item-price">
+                        {item.price.toFixed
+                          ? item.price.toFixed(2)
+                          : Number(item.price).toFixed(2)}{" "}
+                        ₴
+                      </span>
+                    )}
+                    {item.createdAt && (
+                      <span className="item-meta">
+                        Додано: {new Date(item.createdAt).toLocaleDateString("uk-UA")}
+                      </span>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+
+          {!isLoading && !error && items.length === 0 && (
+            <div className="empty-state">
+              <p>Натисніть кнопку вище, щоб завантажити актуальний список товарів.</p>
+            </div>
+          )}
+        </section>
+      </main>
+
+      <footer className="app-footer">
+        <div className="app-footer-inner">
+          <span>© {new Date().getFullYear()} FishHook Shop</span>
+          <span>Курсова робота: онлайн-магазин рибальської снаряги</span>
+        </div>
+      </footer>
+
+      {isOrderModalOpen && (
+        <div className="modal-backdrop" onClick={handleCloseOrderModal}>
+          <div
+            className="modal"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            <h2 className="modal-title">Створення замовлення</h2>
+            <p className="modal-subtitle">
+              Це демо-форма. Замовлення поки що не відправляється на бекенд, а зберігається
+              тільки в стані застосунку.
+            </p>
+            <form className="modal-form" onSubmit={handleOrderSubmit}>
+              <div className="form-row">
+                <label className="form-label" htmlFor="order-name">
+                  Ім&apos;я
+                </label>
+                <input
+                  id="order-name"
+                  className="form-input"
+                  type="text"
+                  value={orderName}
+                  onChange={(e) => setOrderName(e.target.value)}
+                  placeholder="Ваше ім'я"
+                />
+              </div>
+
+              <div className="form-row">
+                <label className="form-label" htmlFor="order-phone">
+                  Телефон
+                </label>
+                <input
+                  id="order-phone"
+                  className="form-input"
+                  type="tel"
+                  value={orderPhone}
+                  onChange={(e) => setOrderPhone(e.target.value)}
+                  placeholder="+38 (0XX) XXX-XX-XX"
+                />
+              </div>
+
+              <div className="form-row">
+                <label className="form-label" htmlFor="order-item">
+                  Товар
+                </label>
+                {items.length > 0 ? (
+                  <select
+                    id="order-item"
+                    className="form-input"
+                    value={orderItem}
+                    onChange={(e) => setOrderItem(e.target.value)}
+                  >
+                    {items.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id="order-item"
+                    className="form-input"
+                    type="text"
+                    value={orderItem}
+                    onChange={(e) => setOrderItem(e.target.value)}
+                    placeholder="Введіть назву товару"
+                  />
+                )}
+              </div>
+
+              <div className="form-row">
+                <label className="form-label" htmlFor="order-quantity">
+                  Кількість
+                </label>
+                <input
+                  id="order-quantity"
+                  className="form-input"
+                  type="number"
+                  min="1"
+                  value={orderQuantity}
+                  onChange={(e) => setOrderQuantity(e.target.value)}
+                />
+              </div>
+
+              {selectedItem && (
+                <div className="form-row form-row-note">
+                  <span className="form-note">
+                    Орієнтовна сума:{" "}
+                    {selectedItem.price
+                      ? (Number(selectedItem.price) * Number(orderQuantity || 1)).toFixed(2)
+                      : "—"}{" "}
+                    ₴
+                  </span>
+                </div>
+              )}
+
+              {orderError && <div className="alert-error">{orderError}</div>}
+              {orderSuccess && <div className="alert-success">{orderSuccess}</div>}
+
+              <div className="modal-actions">
+                <button className="secondary-button" type="button" onClick={handleCloseOrderModal}>
+                  Закрити
+                </button>
+                <button className="primary-button" type="submit">
+                  Підтвердити замовлення
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
-      {errorMessage && (
-        <p style={{ color: "red" }}>
-          {errorMessage}
-        </p>
-      )}
-      <section style={{ marginBottom: "2rem" }}>
-        <h2>Товари</h2>
-        <button onClick={loadItems} disabled={itemsLoading || isActionsDisabled}>
-          {itemsLoading ? "Loading..." : "Load items"}
-        </button>
-        <ul>
-          {items.map((item) => (
-            <li key={item.id}>
-              {item.name} — {item.price} грн ({item.category})
-            </li>
-          ))}
-        </ul>
-      </section>
-      <section>
-        <h2>Створити замовлення</h2>
-        <form onSubmit={submitOrder}>
-          <input
-            type="text"
-            value={orderTitle}
-            onChange={(e) => setOrderTitle(e.target.value)}
-            placeholder="Назва замовлення"
-            disabled={isActionsDisabled}
-            style={{ marginRight: "0.5rem" }}
-          />
-          <button type="submit" disabled={isActionsDisabled}>
-            Створити замовлення
-          </button>
-        </form>
-        {lastOrder && (
-          <div style={{ marginTop: "1rem" }}>
-            <div>Order id: {lastOrder.id}</div>
-            <div>Title: {lastOrder.title}</div>
-            <div>RequestId: {lastOrder.requestId}</div>
-          </div>
-        )}
-      </section>
     </div>
   );
 }
