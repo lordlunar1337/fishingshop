@@ -1,10 +1,10 @@
 const db = require("./db");
 
 db.serialize(() => {
+  db.run("DROP TABLE IF EXISTS items");
   db.run(
-    "CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, price REAL NOT NULL, category TEXT, createdAt TEXT, updatedAt TEXT)"
+    "CREATE TABLE items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, price REAL NOT NULL, category TEXT, createdAt TEXT, updatedAt TEXT)"
   );
-  db.run("DELETE FROM items");
   const stmt = db.prepare(
     "INSERT INTO items (name, description, price, category, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)"
   );
